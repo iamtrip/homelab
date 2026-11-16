@@ -43,6 +43,18 @@ Service LXC (IP:port)
 - **Certificate:** one wildcard Let's Encrypt cert (`tystation.com` and `*.tystation.com`) issued by NPM using the Cloudflare DNS challenge. Auto-renews. Current expiry is February 2027; check the NPM SSL Certificates page occasionally to confirm renewal is working.
 - **Cloudflare API token:** scoped to Zone > DNS > Edit on this one zone only.
 
+## Reverse proxy hosts
+
+| Hostname | Backend |
+|---|---|
+| adguard.tystation.com | http://192.168.1.10:80 |
+| asf.tystation.com | http://192.168.1.13:1242 |
+| proxmox.tystation.com | https://192.168.1.9:8006 |
+| proxy.tystation.com | http://192.168.1.11:81 (NPM admin UI) |
+| vault.tystation.com | https://192.168.1.12:8000 |
+
+**Break-glass access:** if AdGuard or NPM is down, the names stop working. Reach Proxmox directly at `https://192.168.1.9:8006` (self-signed cert warning expected) and fix the container from there.
+
 ## ArchiSteamFarm
 
 - Runs as a systemd service under a dedicated unprivileged `asf` user in `/opt/asf`.
