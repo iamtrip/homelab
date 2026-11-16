@@ -65,7 +65,7 @@ Service LXC (IP:port)
 ## Backups
 
 - Proxmox backup job (Datacenter > Backup) covering the containers, snapshot mode, ZSTD compression.
-- Schedule: TODO. Retention: TODO.
+- Schedule: First day of each month 03:00. Retention: 3.
 - Target: `local`, which is a different physical NVMe drive from the guest disks.
 - All backups together are about 1.2 GB.
 - **Restore test:** restored a backup to a spare container ID with "Start after restore" off (avoids an IP clash with the live container), confirmed it booted, then deleted it.
