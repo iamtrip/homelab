@@ -21,6 +21,7 @@ Single-node Proxmox homelab. Internal DNS, a reverse proxy with trusted HTTPS on
 | 101 | nginxproxy | 192.168.1.11 | Nginx Proxy Manager: reverse proxy, TLS termination, wildcard cert |
 | 102 | vaultwarden | 192.168.1.12 | Vaultwarden (set up, not in use) |
 | 103 | asf | 192.168.1.13 | ArchiSteamFarm: idles hours on alt Steam accounts, web GUI on port 1242 |
+| 110 | searxng | 192.168.1.20 | SearXNG: self-hosted metasearch engine, LAN-only |
 
 All containers use static IPs. Start-at-boot is on, with AdGuard first in the boot order so DNS is up before anything that depends on it.
 
@@ -28,7 +29,7 @@ All containers use static IPs. Start-at-boot is on, with AdGuard first in the bo
 
 ```
 Device
-  │  1. "where is *.tystation.com?"
+  │  1. "where is <name>.tystation.com?"
   ▼
 AdGuard Home (192.168.1.10)      <- router hands this out as the DNS server via DHCP
   │  2. DNS rewrite: *.tystation.com -> 192.168.1.11
@@ -52,6 +53,8 @@ Service LXC (IP:port)
 | proxmox.tystation.com | https://192.168.1.9:8006 |
 | proxy.tystation.com | http://192.168.1.11:81 (NPM admin UI) |
 | vault.tystation.com | https://192.168.1.12:8000 |
+| search.tystation.com | http://192.168.1.20:8888 |
+
 
 **Break-glass access:** if AdGuard or NPM is down, the names stop working. Reach Proxmox directly at `https://192.168.1.9:8006` (self-signed cert warning expected) and fix the container from there.
 
@@ -62,12 +65,20 @@ Service LXC (IP:port)
 - The web GUI is bound to the LAN and protected by an SCrypt-hashed `IPCPassword`.
 - First login for each bot is done once in the foreground (Steam Guard QR), after which ASF reuses its saved login token.
 
+## SearXNG
+
+- Installed natively in its own LXC and served over HTTPS through NPM. LAN-only: no public DNS record and no port forward.
+- Config is an override file at `/etc/searxng/settings.yml` with `use_default_settings: true`, so only changed values are listed and everything else inherits SearXNG's defaults.
+- Defaults set server-side instead of per-browser cookies: dark theme, safe search off, infinite scroll, image proxy, `base_url` set to the HTTPS name, and the bot limiter off (LAN-only instance).
+- `general.contact_url` is set, because the Wikipedia, Wikidata and OpenStreetMap engines refuse to load without one.
+- The Tor-based engines (`ahmia`, `torch`) are marked inactive; they need a Tor proxy that isn't set up.
+
 ## Backups
 
 - Proxmox backup job (Datacenter > Backup) covering the containers, snapshot mode, ZSTD compression.
 - Schedule: First day of each month 03:00. Retention: 3.
 - Target: `local`, which is a different physical NVMe drive from the guest disks.
-- All backups together are about 1.2 GB.
+- All backups together are about 1.8 GB.
 - **Restore test:** restored a backup to a spare container ID with "Start after restore" off (avoids an IP clash with the live container), confirmed it booted, then deleted it.
 - Limitation: both drives are in one machine, so this does not cover theft, fire or a power fault. Copy a recent backup off the box occasionally.
 
@@ -83,15 +94,18 @@ Not stored in this repo. Where they live:
 - **`SSL_ERROR_BAD_CERT_DOMAIN` on a proxied host.** The cert covered `tystation.com` only; the wildcard `*.tystation.com` was missing from the certificate's domain list. Fix: reissue with both names. A wildcard does not cover the bare apex domain.
 - **ASF would not start: "global config could not be loaded".** A missing quote in `ASF.json` made it invalid JSON. Fix: correct the JSON; the error named the file.
 - **`encrypt` and `hash` commands refused: "no bots defined".** ASF needs at least one bot config present before it will run commands. Fix: create a disabled placeholder bot config.
-
+- **SearXNG: Wikipedia, Wikidata and OpenStreetMap engines failed to load ("requires general.contact_url").** The default `contact_url: false` leaves it unset, and those engines won't start without a contact. Fix: set a contact URL under `general:` in `settings.yml`; the errors cleared on restart.
+- 
 ## Maintenance checklist
 
 - [ ] Monthly: `apt update && apt upgrade` in each container, then on the Proxmox host (take a manual backup first)
 - [ ] Check NPM wildcard cert expiry and renewal status
 - [ ] Verify the latest backup exists and occasionally test a restore
 - [ ] Copy a recent backup off the machine
+- [ ] After adding a container, add it to the backup job (the job uses selected VMs, so new ones are not included automatically)
 
 ## Ideas / next steps
 
 - VLAN segmentation
 - Decide whether Vaultwarden gets used or retired
+- Game servers with Pelican Panel: panel in an LXC, Wings (Docker) in its own VM so game servers are isolated from the host kernel
